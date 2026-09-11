@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 .pytest_cache/
 .env
+
+.git_creditionals.md
