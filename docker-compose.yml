@@ -1,0 +1,57 @@
+# One BSL MCP service per project (single-workspace design of onec-hbk-bsl),
+# plus nginx as the shared bearer-authenticated Streamable-HTTP front.
+#
+# Mounts are 1:1 (host path == container path): agents pass the same paths the
+# server sees, so no host<->container mapping layer is needed (Linux hosts).
+# Index SQLite persists inside the mounted project (.git/onec-hbk-bsl_index.sqlite).
+
+x-bsl-service: &bsl-service
+  image: bsl-mcp:local
+  build: .
+  restart: unless-stopped
+  expose:
+    - "8051"
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: 2g
+
+services:
+  bsl-proj-a:
+    <<: *bsl-service
+    environment:
+      WORKSPACE_ROOT: "${PROJ_A_PATH:?set PROJ_A_PATH in .env}"
+      MCP_PORT: "8051"
+    volumes:
+      - "${PROJ_A_PATH}:${PROJ_A_PATH}"
+
+  bsl-proj-b:
+    <<: *bsl-service
+    environment:
+      WORKSPACE_ROOT: "${PROJ_B_PATH:?set PROJ_B_PATH in .env}"
+      MCP_PORT: "8051"
+    volumes:
+      - "${PROJ_B_PATH}:${PROJ_B_PATH}"
+
+  bsl-proj-c:
+    <<: *bsl-service
+    environment:
+      WORKSPACE_ROOT: "${PROJ_C_PATH:?set PROJ_C_PATH in .env}"
+      MCP_PORT: "8051"
+    volumes:
+      - "${PROJ_C_PATH}:${PROJ_C_PATH}"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      - bsl-proj-a
+      - bsl-proj-b
+      - bsl-proj-c
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    environment:
+      BSL_MCP_TOKEN: "${BSL_MCP_TOKEN:?set BSL_MCP_TOKEN in .env}"
+    volumes:
+      - ./nginx/templates:/etc/nginx/templates:ro

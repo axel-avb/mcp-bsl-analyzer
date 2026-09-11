@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bsl-mcp"
+version = "0.1.0"
+description = "Streamable-HTTP MCP server for BSL/1C diagnostics and complexity, built on onec-hbk-bsl"
+requires-python = ">=3.12"
+dependencies = [
+    # Pinned: our facade touches internal modules of this package (see lsp_facade.py).
+    "onec-hbk-bsl-core[mcp]==0.8.50",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+bsl-mcp = "bsl_mcp.entrypoint:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
