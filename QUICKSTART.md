@@ -71,7 +71,71 @@ PROJ_C_PATH=/srv/1c/ut
 | `bsl-proj-b` | `http://<host>:8080/bsl/proj-b/mcp` |
 | `bsl-proj-c` | `http://<host>:8080/bsl/proj-c/mcp` |
 
-### Добавить проект
+### Добавить n-й проект
+
+Роутинг полностью динамический: nginx берёт имя проекта из URL `/bsl/<proj>/mcp`,
+резолвит сервис `bsl-<proj>` через Docker DNS (`resolver 127.0.0.11`) и проксирует
+на `bsl-<proj>:8051/mcp`. Править nginx при добавлении проекта **не нужно** — нужен
+только сам сервис в `docker-compose.yml`.
+
+Полный конфиг nginx (`nginx/templates/default.conf.template`, менять при добавлении
+проекта не требуется):
+
+```nginx
+map $http_authorization $bsl_authed {
+    default 0;
+    "Bearer ${BSL_MCP_TOKEN}" 1;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    resolver 127.0.0.11 valid=30s ipv6=off;
+
+    location ~ ^/bsl/(?<proj>[a-zA-Z0-9_-]+)/mcp/?$ {
+        if ($bsl_authed = 0) {
+            return 401;
+        }
+
+        rewrite ^/bsl/[a-zA-Z0-9_-]+/mcp/?$ /mcp break;
+        proxy_pass http://bsl-${proj}:8051;
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    location = /healthz {
+        return 200 "ok\n";
+    }
+}
+```
+
+Важные детали конфига:
+
+- `"Bearer ${BSL_MCP_TOKEN}"` в `map` — envsubst образа nginx подставляет сюда
+  значение `BSL_MCP_TOKEN` из `.env` (в `docker-compose.yml` он передаётся в
+  environment nginx-сервиса).
+- `resolver 127.0.0.11` обязателен: без него nginx не резолвит `bsl-${proj}` в
+  переменной `proxy_pass` и возвращает `502`.
+- Слеш в конце URL (`/mcp/`) срезается `rewrite`: бэкенд на `/mcp/` отвечает
+  `307`-редиректом на `/mcp`.
+- `proxy_buffering off` обязателен для SSE — не убирать.
+
+Условия, чтобы n-й проект заработал:
+
+1. Сервис называется `bsl-<proj>` (имя контейнера при этом неважно).
+2. Бэкенд слушает порт `8051` — он зашит в шаблон; в compose задаётся
+   `MCP_PORT: "8051"`.
+3. Имя проекта матчится `[a-zA-Z0-9_-]+` (дефис ок, остальные спецсимволы — нет).
+4. Токен один на всё развёртывание — `BSL_MCP_TOKEN` в `.env` (auth глобальный,
+   отдельный токен на проект не предусмотрен).
+
+Шаги:
 
 1. В `.env` добавь `PROJ_D_PATH=/srv/1c/erp`.
 2. В `docker-compose.yml` добавь сервис по образцу и допиши его в `depends_on` у `nginx`:

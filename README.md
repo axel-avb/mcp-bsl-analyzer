@@ -135,9 +135,18 @@ Inherited from onec-hbk-bsl (22 tools): `bsl_status`, `bsl_find_symbol`,
 | `NGINX_PORT` | no | Host port for nginx (default `8080`) |
 | `PROJ_A_PATH`, `PROJ_B_PATH`, `PROJ_C_PATH` | yes | Absolute host paths of 1C projects (mounted 1:1) |
 
-Service name must be `bsl-<proj>` for `/bsl/<proj>/...` routing. Index settings
-(`index-mode`, `select`/`ignore`, `exclude`) come from `onec-hbk-bsl.toml` in the
-project root.
+Service name must be `bsl-<proj>` for `/bsl/<proj>/mcp` routing. Routing is fully
+dynamic: nginx resolves `bsl-<proj>` via Docker DNS (`resolver 127.0.0.11`) and
+proxies to `bsl-<proj>:8051/mcp` — adding a 2nd, 3rd, or n-th project needs a
+`bsl-<proj>` service in `docker-compose.yml` and **no nginx config change**.
+Requirements: the backend listens on port `8051`; the project name matches
+`[a-zA-Z0-9_-]+` (dash is fine, other special chars are not); a single token per
+deployment (`BSL_MCP_TOKEN`), per-project tokens are not supported. The full nginx
+config and step-by-step project onboarding are in
+[QUICKSTART.md → "Add an n-th project"](QUICKSTART.md#4-как-устроены-сервисы-и-url).
+
+Index settings (`index-mode`, `select`/`ignore`, `exclude`) come from
+`onec-hbk-bsl.toml` in the project root.
 
 ## Documentation
 

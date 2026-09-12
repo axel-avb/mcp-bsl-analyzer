@@ -1,7 +1,3 @@
-# Rendered by the nginx image entrypoint (envsubst) from /etc/nginx/templates.
-# Only variables defined in the container env are substituted; nginx's own
-# $host/$http_* etc. are preserved.
-
 map $http_authorization $bsl_authed {
     default 0;
     "Bearer ${BSL_MCP_TOKEN}" 1;
@@ -11,21 +7,18 @@ server {
     listen 80;
     server_name _;
 
-    # /bsl/<proj>/mcp -> http://bsl-<proj>:8051/mcp  (Docker embedded DNS)
-    location ~ ^/bsl/(?<proj>[a-zA-Z0-9_-]+)/(?<rest>.*)$ {
+    resolver 127.0.0.11 valid=30s ipv6=off;
+
+    location ~ ^/bsl/(?<proj>[a-zA-Z0-9_-]+)/mcp/?$ {
         if ($bsl_authed = 0) {
             return 401;
         }
 
-        resolver 127.0.0.11 valid=30s ipv6=off;
-        set $upstream "bsl-${proj}:8051";
-
-        proxy_pass http://$upstream/$rest$is_args$args;
+        rewrite ^/bsl/[a-zA-Z0-9_-]+/mcp/?$ /mcp break;
+        proxy_pass http://bsl-${proj}:8051;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header Connection "";
-
-        # Streamable HTTP uses a long-lived GET/SSE stream: never buffer it.
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 3600s;
